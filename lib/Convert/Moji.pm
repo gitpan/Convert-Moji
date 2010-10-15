@@ -1,76 +1,10 @@
-=head1 NAME
-
-Convert::Moji - convert between lists of characters
-
-=head1 VERSION
-
-Version 0.01
-
-=cut
-
-our $VERSION = '0.01';
-
-=head1 SYNOPSIS
-
-This module transforms one list of characters into another. Here are
-some ways you could make a rot13 transformer with this module:
-
-    use Convert::Moji;
-    # Using a table
-    my %rot13; @rot13{('a'..'z')} = ('n'..'z','a'..'m');
-    my $rot13 = Convert::Moji->new (["table", \%rot13]);
-    # Using tr
-    my $rot13_1 = Convert::Moji->new (["tr", "a-z", "n-za-m"]);
-    # Using a callback
-    sub rot_13_sub { tr/a-z/n-za-m/; return $_ }
-    my $rot13_2 = Convert::Moji->new (["code", \&rot_13_sub]);
-
-Then to do the actual conversion
-
-    my $out = $rot13->convert ("secret");
-
-and now $out contains "frperg".You also can go backwards with
-
-    my $inverted = $rot13->invert ("frperg");
-
-and now $inverted contains "secret".
-
-=head2 Combining conversions
-
-You can also chain the converters
-together, with
-
-    my $does_something = Convert::Moji->new (["table", $mytable],
-					     ["tr", $left, $right]);
-
-
-=head2 Uninvertible operations
-
-If your conversion doesn't actually go backwards, you can tell the
-module when you create the object using a keyword "oneway":
-
-    my $uninvertible = Convert::Moji->new (["oneway", "table", $mytable]);
-
-Then $uninvertible->invert doesn't do anything. You can also
-selectively choose which operations of a list are invertible and which
-aren't, so that only the invertible ones do something.
-
-=head2 Load from a file
-
-You can also load a table from a file using
-
-Convert::Moji->new (["file", $filename]);
-
-In this case, the file needs to contain a space-separated list to be
-converted one into the other.
-
-=head3 Bugs
-
-This doesn't handle comments or blank lines in the file.
-
-=cut
+our $VERSION = '0.02';
 
 package Convert::Moji;
+
+require Exporter;
+@ISA = qw(Exporter);
+@EXPORT_OK = qw/make_regex/;
 
 use warnings;
 use strict;
@@ -78,41 +12,26 @@ use utf8;
 
 use Carp;
 
-# =head2 load_convertor
-
-# Internal routine. Load a convertor from a file.
-
-# =cut
+# Load a converter from a file and return a hash reference containing
+# the left/right pairs.
 
 sub load_convertor
 {
     my ($file) = @_;
     my $file_in;
-    if (! open $file_in, "<:utf8", $file) {
+    if (! open $file_in, "<:encoding(utf8)", $file) {
 	carp "Could not open '$file' for reading: $!";
 	return;
     }
     my %converter;
     while (<$file_in>) {
-#	print;
 	chomp;
 	my ($left, $right) = split /\s+/;
-#	print "l = $left r = $right\n";
 	$converter{$left} = $right;
     }
     close $file_in or croak "Could not close '$file': $!";
     return \%converter;
 }
-
-# length_one
-
-# Internal routine.
-
-# We also need a routine to go from something like
-
-# a: b c d e
-
-# to an ambiguous map.
 
 # Does every element of the array have length one or not?
 
@@ -124,19 +43,23 @@ sub length_one
     return 1;
 }
 
-# make_regex
+=head2 make_regex
 
-# Internal routine
+    my $regex = make_regex (qw/a b c de fgh/);
 
-# Make a regular expression to match any of the characters in the list
-# of inputs.
+    # $regex = "(fgh|de|a|b|c)";
+
+Make a regular expression which matches any of the characters in the
+list of inputs, sorted by length.
+
+=cut
 
 sub make_regex
 {
     my @inputs = @_;
     # Quote any special characters. We could also do this with join
     # '\E|\Q', but the regexes then become even longer.
-    for (@inputs) { s/([\$\\\/*\.^()+*?{}])/\\$1/g }
+#    @inputs = map {quotemeta} @inputs;
     if (length_one (@inputs)) {
 	return '(['.(join '', @inputs).'])';
     } else {
@@ -280,6 +203,179 @@ sub code
     return $erter;
 }
 
+sub new
+{
+    my ($package, @conversions) = @_;
+    my $conv = {};
+    bless $conv;
+    $conv->{erter} = [];
+    $conv->{erters} = 0;
+    for my $c (@conversions) {
+	my $noinvert;
+	my $erter;
+	if ($c->[0] eq "oneway") {
+	    shift @$c;
+	    $noinvert = 1;
+	}
+	if ($c->[0] eq "table") {
+#	    print "Adding a table\n";
+	    $erter = table ($c->[1], $noinvert);
+	} elsif ($c->[0] eq "file") {
+	    my $file = $c->[1];
+#	    print "Adding a table from file '$file'\n";
+	    my $table = Convert::Moji::load_convertor ($file);
+	    return if !$table;
+	    $erter = table ($table, $noinvert);
+	} elsif ($c->[0] eq 'tr') {
+	    $erter = tr_erter ($c->[1], $c->[2]);
+	} elsif ($c->[0] eq 'code') {
+	    $erter = code ($c->[1], $c->[2]);
+	    if (!$c->[2]) {
+		$noinvert = 1;
+	    }
+	}
+	my $o = $conv->{erters};
+	$conv->{erter}->[$o] = $erter;
+	$conv->{noinvert}->[$o] = $noinvert;
+	$conv->{erters}++;
+    }
+    return $conv;
+}
+
+sub convert
+{
+    my ($conv, $input) = @_;
+    for (my $i = 0; $i < $conv->{erters}; $i++) {
+#	print "\$i = $i\n";
+	my $erter = $conv->{erter}->[$i];
+	if ($erter->{type} eq "table") {
+	    my $lhs = $erter->{lhs};
+	    my $rhs = $erter->{in2out};
+	    $input =~ s/$lhs/$$rhs{$1}/g;
+	} elsif ($erter->{type} eq 'tr') {
+	    my $lhs = $erter->{lhs};
+	    my $rhs = $erter->{rhs};
+	    eval ("\$input =~ tr/$lhs/$rhs/");
+	} elsif ($erter->{type} eq 'code') {
+	    $_ = $input;
+	    $input = &{$erter->{convert}};
+	}
+    }
+    return $input;
+}
+
+sub invert
+{
+    my ($conv, $input, $convert_type) = @_;
+    for (my $i = $conv->{erters} - 1; $i >= 0; $i--) {
+	next if $conv->{noinvert}->[$i];
+	my $erter = $conv->{erter}->[$i];
+	if ($erter->{type} eq "table") {
+	    if ($erter->{unambiguous}) {
+		my $lhs = $erter->{rhs};
+		my $rhs = $erter->{out2in};
+		$input =~ s/$lhs/$$rhs{$1}/g;
+	    } else {
+		$input = split_match ($erter, $input, $convert_type);
+	    }
+	} elsif ($erter->{type} eq 'tr') {
+	    my $lhs = $erter->{rhs};
+	    my $rhs = $erter->{lhs};
+	    eval ("\$input =~ tr/$lhs/$rhs/");
+	} elsif ($erter->{type} eq 'code') {
+	    $_ = $input;
+	    $input = &{$erter->{invert}};
+	}
+    }
+    return $input;
+}
+
+# Split "string" using alphabet 1.
+
+sub split_by_input_alphabet
+{
+    my ($conv, $string) = @_;
+    my @split_string;
+    my $first = $conv->{erter}->[0];
+    if ($first->{type} eq 'tr') {
+        my $lhs = $first->{lhs};
+        @split_string = ($string =~ /([$lhs])/g);
+    }
+    elsif ($first->{type} eq 'table') {
+        my $lhs = $first->{lhs};
+        print "Splitting using regex '$lhs'\n";
+        @split_string = ($string =~ /$lhs/g);
+    }
+    elsif ($first->{type} eq 'code') {
+        croak "Can't make a regex for a code-style converter";
+    }
+    return @split_string;
+}
+
+# Given "string" in the input alphabet, make a regular expression in
+# the output alphabet which will match any possible conversions of
+# "string" into the output alphabet.
+
+sub string2regex
+{
+    my ($converter, $string) = @_;
+    my @string_chars = $converter->split_by_alphabet1 ($string);
+    for my $c (@string_chars) {
+        my @output = $converter->convert ($c);
+    }
+
+}
+
+
+1;
+
+__END__
+
+=head1 NAME
+
+Convert::Moji - convert between alphabets
+
+=head1 VERSION
+
+Version 0.01
+
+=cut
+
+=head1 SYNOPSIS
+
+Convert::Moji -- convert between alphabets
+
+# Ways to make a rot13 transformer:
+
+    use Convert::Moji;
+    # Using a table
+    my %rot13;
+    @rot13{('a'..'z')} = ('n'..'z','a'..'m');
+    my $rot13 = Convert::Moji->new (["table", \%rot13]);
+    # Using tr
+    my $rot13_1 = Convert::Moji->new (["tr", "a-z", "n-za-m"]);
+    # Using a callback
+    sub rot_13_sub { tr/a-z/n-za-m/; return $_ }
+    my $rot13_2 = Convert::Moji->new (["code", \&rot_13_sub]);
+
+Then to do the actual conversion
+
+    my $out = $rot13->convert ("secret");
+
+and now $out contains "frperg". You also can go backwards with
+
+    my $inverted = $rot13->invert ("frperg");
+
+and now $inverted contains "secret".
+
+=head2 Combining conversions
+
+You can also chain the converters
+together, with
+
+    my $does_something = Convert::Moji->new (["table", $mytable],
+					     ["tr", $left, $right]);
+
 =head2 new
 
 Create the object. Arguments are a list of array references. The array
@@ -335,46 +431,29 @@ Conversions, via "convert", will be performed in the order of the
 arguments. Inversions will be performed in reverse order of the
 arguments, skipping uninvertibles.
 
-=cut
+=head2 Uninvertible operations
 
-sub new
-{
-    my ($package, @conversions) = @_;
-    my $conv = {};
-    bless $conv;
-    $conv->{erter} = [];
-    $conv->{erters} = 0;
-    for my $c (@conversions) {
-	my $noinvert;
-	my $erter;
-	if ($c->[0] eq "oneway") {
-	    shift @$c;
-	    $noinvert = 1;
-	}
-	if ($c->[0] eq "table") {
-#	    print "Adding a table\n";
-	    $erter = table ($c->[1], $noinvert);
-	} elsif ($c->[0] eq "file") {
-	    my $file = $c->[1];
-#	    print "Adding a table from file '$file'\n";
-	    my $table = Convert::Moji::load_convertor ($file);
-	    return if !$table;
-	    $erter = table ($table, $noinvert);
-	} elsif ($c->[0] eq 'tr') {
-	    $erter = tr_erter ($c->[1], $c->[2]);
-	} elsif ($c->[0] eq 'code') {
-	    $erter = code ($c->[1], $c->[2]);
-	    if (!$c->[2]) {
-		$noinvert = 1;
-	    }
-	}
-	my $o = $conv->{erters};
-	$conv->{erter}->[$o] = $erter;
-	$conv->{noinvert}->[$o] = $noinvert;
-	$conv->{erters}++;
-    }
-    return $conv;
-}
+If your conversion doesn't actually go backwards, you can tell the
+module when you create the object using a keyword "oneway":
+
+    my $uninvertible = Convert::Moji->new (["oneway", "table", $mytable]);
+
+Then $uninvertible->invert doesn't do anything. You can also
+selectively choose which operations of a list are invertible and which
+aren't, so that only the invertible ones do something.
+
+=head2 Load from a file
+
+Load a character conversion table from a file using
+
+Convert::Moji->new (["file", $filename]);
+
+In this case, the file needs to contain a space-separated list to be
+converted one into the other.
+
+=head3 Bugs
+
+This doesn't handle comments or blank lines in the file.
 
 =head2 convert
 
@@ -393,28 +472,6 @@ should have a "strict" option to also validate the input.
 =back
 
 =cut
-
-sub convert
-{
-    my ($conv, $input) = @_;
-    for (my $i = 0; $i < $conv->{erters}; $i++) {
-#	print "\$i = $i\n";
-	my $erter = $conv->{erter}->[$i];
-	if ($erter->{type} eq "table") {
-	    my $lhs = $erter->{lhs};
-	    my $rhs = $erter->{in2out};
-	    $input =~ s/$lhs/$$rhs{$1}/g;
-	} elsif ($erter->{type} eq 'tr') {
-	    my $lhs = $erter->{lhs};
-	    my $rhs = $erter->{rhs};
-	    eval ("\$input =~ tr/$lhs/$rhs/");
-	} elsif ($erter->{type} eq 'code') {
-	    $_ = $input;
-	    $input = &{$erter->{convert}};
-	}
-    }
-    return $input;
-}
 
 =head2 invert
 
@@ -457,52 +514,6 @@ conversions, and is very likely to be buggy even then.
 
 =back
 
-=cut
-
-sub invert
-{
-    my ($conv, $input, $convert_type) = @_;
-    for (my $i = $conv->{erters} - 1; $i >= 0; $i--) {
-	next if $conv->{noinvert}->[$i];
-	my $erter = $conv->{erter}->[$i];
-	if ($erter->{type} eq "table") {
-	    if ($erter->{unambiguous}) {
-		my $lhs = $erter->{rhs};
-		my $rhs = $erter->{out2in};
-		$input =~ s/$lhs/$$rhs{$1}/g;
-	    } else {
-		$input = split_match ($erter, $input, $convert_type);
-	    }
-	} elsif ($erter->{type} eq 'tr') {
-	    my $lhs = $erter->{rhs};
-	    my $rhs = $erter->{lhs};
-	    eval ("\$input =~ tr/$lhs/$rhs/");
-	} elsif ($erter->{type} eq 'code') {
-	    $_ = $input;
-	    $input = &{$erter->{invert}};
-	}
-    }
-    return $input;
-}
-
-1;
-
-__END__
-
-=head1 WHY?
-
-This is a back-end module for other modules which do character
-transformations. I hope to release those modules on CPAN soon, so
-hopefully the motivation for this will become clearer then.
-
-It was originally a sub-module of another one for converting Japanese
-characters ("moji", hence the weird name). During the process of
-making this module, I discovered that I also wanted its features for
-another module which had absolutely nothing to do with Japanese
-characters, so I pulled it out of its submodule status and I'm
-releasing it on CPAN as a separate module prior to releasing the other
-two. Perhaps it will be useful for someone else as well.
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-convert-moji at
@@ -517,10 +528,9 @@ Ben Bullock, C<< <benkasminbullock at gmail.com> >>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Ben Kasmin Bullock, all rights reserved.
+Copyright 2008 Ben Bullock, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
-
 
 =cut
