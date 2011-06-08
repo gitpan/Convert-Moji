@@ -1,16 +1,15 @@
-our $VERSION = '0.02';
-
 package Convert::Moji;
 
 require Exporter;
 @ISA = qw(Exporter);
-@EXPORT_OK = qw/make_regex/;
+@EXPORT_OK = qw/make_regex length_one unambiguous/;
 
 use warnings;
 use strict;
-use utf8;
 
 use Carp;
+
+our $VERSION = '0.03';
 
 # Load a converter from a file and return a hash reference containing
 # the left/right pairs.
@@ -33,8 +32,6 @@ sub load_convertor
     return \%converter;
 }
 
-# Does every element of the array have length one or not?
-
 sub length_one
 {
     for (@_) {
@@ -43,23 +40,12 @@ sub length_one
     return 1;
 }
 
-=head2 make_regex
-
-    my $regex = make_regex (qw/a b c de fgh/);
-
-    # $regex = "(fgh|de|a|b|c)";
-
-Make a regular expression which matches any of the characters in the
-list of inputs, sorted by length.
-
-=cut
-
 sub make_regex
 {
     my @inputs = @_;
     # Quote any special characters. We could also do this with join
     # '\E|\Q', but the regexes then become even longer.
-#    @inputs = map {quotemeta} @inputs;
+    @inputs = map {quotemeta} @inputs;
     if (length_one (@inputs)) {
 	return '(['.(join '', @inputs).'])';
     } else {
@@ -70,13 +56,7 @@ sub make_regex
     }
 }
 
-# _unambiguous
-
-# Internal routine
-
-# True if mapping to/from keys and values is unambiguous both ways.
-
-sub _unambiguous
+sub unambiguous
 {
     my ($table) = @_;
     my %inverted;
@@ -161,7 +141,7 @@ sub table
     my @values = values %$table;
     $erter->{lhs} = make_regex @keys;
     if (!$noinvert) {
-	$erter->{unambiguous} = _unambiguous($table);
+	$erter->{unambiguous} = unambiguous($table);
 	if ($erter->{unambiguous}) {
 	    my %out2in_table = reverse %{$table};
 	    $erter->{out2in} = \%out2in_table;
@@ -252,11 +232,13 @@ sub convert
 	    my $lhs = $erter->{lhs};
 	    my $rhs = $erter->{in2out};
 	    $input =~ s/$lhs/$$rhs{$1}/g;
-	} elsif ($erter->{type} eq 'tr') {
+	}
+        elsif ($erter->{type} eq 'tr') {
 	    my $lhs = $erter->{lhs};
 	    my $rhs = $erter->{rhs};
 	    eval ("\$input =~ tr/$lhs/$rhs/");
-	} elsif ($erter->{type} eq 'code') {
+	}
+        elsif ($erter->{type} eq 'code') {
 	    $_ = $input;
 	    $input = &{$erter->{convert}};
 	}
@@ -275,14 +257,17 @@ sub invert
 		my $lhs = $erter->{rhs};
 		my $rhs = $erter->{out2in};
 		$input =~ s/$lhs/$$rhs{$1}/g;
-	    } else {
+	    }
+            else {
 		$input = split_match ($erter, $input, $convert_type);
 	    }
-	} elsif ($erter->{type} eq 'tr') {
+	}
+        elsif ($erter->{type} eq 'tr') {
 	    my $lhs = $erter->{rhs};
 	    my $rhs = $erter->{lhs};
 	    eval ("\$input =~ tr/$lhs/$rhs/");
-	} elsif ($erter->{type} eq 'code') {
+	}
+        elsif ($erter->{type} eq 'code') {
 	    $_ = $input;
 	    $input = &{$erter->{invert}};
 	}
@@ -334,12 +319,6 @@ __END__
 =head1 NAME
 
 Convert::Moji - convert between alphabets
-
-=head1 VERSION
-
-Version 0.01
-
-=cut
 
 =head1 SYNOPSIS
 
@@ -514,6 +493,49 @@ conversions, and is very likely to be buggy even then.
 
 =back
 
+=head1 FUNCTIONS
+
+These functions are used by the module and may be useful to outside
+programs.
+
+=head2 length_one
+
+    # Returns false:
+    length_one ('x', 'y', 'monkey');
+    # Returns true:    
+    length_one ('x', 'y', 'm');
+
+Returns true if every element of the array has a length equal to one,
+and false if any of them does not have length one.
+
+=head2 make_regex
+
+    my $regex = make_regex (qw/a b c de fgh/);
+
+    # $regex = "fgh|de|a|b|c";
+
+Given a list of inputs, make a regular expression which matches any of
+the characters in the list of inputs, longest match first. Each of the
+elements of the list is quoted using C<quotemeta>. The regular
+expression does not contain capturing parentheses. For example, to
+convert everything in string C<$x> from the keys of C<%foo2bar> to its
+values,
+
+    my %foo2bar = (mad => 'max', dangerous => 'trombone');
+    my $x = 'mad, bad, and dangerous to know';
+    my $regex = make_regex (keys %foo2bar);
+    $x =~ s/($regex)/$foo2bar{$1}/g;
+    # Now $x = "max, bad, and trombone to know".
+
+=head2 unambiguous
+
+    if (unambiguous (\%table)) {
+
+    }
+
+Returns true if all of the values in C<%table> are distinct, and false
+if any two of the values in C<%table> are the same.
+
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-convert-moji at
@@ -524,11 +546,11 @@ progress on your bug as I make changes.
 
 =head1 AUTHOR
 
-Ben Bullock, C<< <benkasminbullock at gmail.com> >>
+Ben Bullock, <bkb@cpan.org>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Ben Bullock, all rights reserved.
+Copyright 2008-2011 Ben Bullock, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

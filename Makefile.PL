@@ -1,12 +1,12 @@
-use inc::Module::Install;
+use warnings;
+use strict;
+use ExtUtils::MakeMaker;
 
-name     'Convert-Moji';
-all_from 'lib/Convert/Moji.pm';
-author   'Ben Kasmin Bullock <benkasminbullock@gmail.com>';
+my $pm = 'lib/Convert/Moji.pm';
 
-build_requires 'Test::More';
-
-auto_install;
-
-WriteAll;
-
+WriteMakefile (
+    NAME => 'Convert::Moji',
+    VERSION_FROM => $pm,
+    AUTHOR => 'Ben Bullock <bkb@cpan.org>',
+    LICENSE => 'perl',
+);

@@ -8,6 +8,11 @@ BEGIN { use_ok('Convert::Moji') };
 use Convert::Moji;
 use utf8;
 
+binmode STDOUT, ":utf8";
+binmode STDERR, ":utf8";
+binmode Test::More->builder->output, ":utf8";
+binmode Test::More->builder->failure_output, ":utf8";
+
 my %rot13;
 @rot13{('a'..'m')} = ('n'..'z');
 
@@ -47,7 +52,7 @@ ok ($moji5, "code based convertor");
 #print $moji5->convert ("abcd");
 ok ($moji5->convert ("abcd") eq "yaxybxycxydx", "subroutine conversion");
 my $fname = "poo.txt";
-open my $f, ">", "$fname" or die "can't write file: $!";
+open my $f, ">:utf8", "$fname" or die "can't write file: $!";
 print $f <<EOF;
 ギ gi
 プ pu
