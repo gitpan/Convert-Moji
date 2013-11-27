@@ -1,0 +1,236 @@
+    ____                          _           __  __       _ _ 
+   / ___|___  _ ____   _____ _ __| |_   _ _  |  \/  | ___ (_|_)
+  | |   / _ \| '_ \ \ / / _ \ '__| __| (_|_) | |\/| |/ _ \| | |
+  | |__| (_) | | | \ V /  __/ |  | |_   _ _  | |  | | (_) | | |
+   \____\___/|_| |_|\_/ \___|_|   \__| (_|_) |_|  |_|\___// |_|
+                                                        |__/   
+
+
+This is the README for Convert::Moji version 0.06.
+
+Convert::Moji is a "module" for the Perl computer programming language, a
+library of computer code to install on a computer.  This document contains four
+sections:
+
+1. About - what the module does
+
+2. Documentation - how to learn more about the module
+
+3. Installation - how to install this module on a computer
+
+4. Help - what to do if you get stuck
+
+-----------------------------------------------------------------------------
+
+1. ABOUT
+
+Convert::Moji - objects to convert alphabets
+
+Convert::Moji creates objects which can be used to convert between
+different alphabets. It was originally designed to do the work for
+"Lingua::JA::Moji", to convert between different forms of Japanese
+writing. It was split out of that module as a general-purpose
+converter for any alphabets.
+
+
+
+Create the object. Arguments are a list of array references. The array
+references should have either the "noninvertible" flag "oneway" or one
+of the following as its first argument.
+
+You can also chain the converters
+together, with
+
+    my $does_something = Convert::Moji->new (["table", $mytable],
+					     ["tr", $left, $right]);
+
+
+
+
+
+After this comes one more argument, a reference to the hash containing
+the table. For example
+
+     my $conv = Convert::Moji->new (["table", \%crazyhash]);
+
+The hash keys and values can be any length, so you can convert single
+characters into words, as in 
+
+     my %crazyhash = {"a" => "apple", "b" => "banana"}
+
+and vice-versa if you wish. The conversion will be performed correctly
+regardless of the weirdness of your table.
+
+
+
+After this comes one more argument, the name of a file containing some
+information to convert into a hash table. The file format is
+space-separated pairs, no comments or blank lines allowed. If the file
+does not exist or cannot be opened, the module prints an error
+message, and returns the undefined value.
+
+
+
+After this comes one or two references to subroutines. The first
+subroutine is the conversion and the second one is the inversion
+routine. If you omit the second routine, it is equivalent to
+specifying "oneway".
+
+
+
+After this come two arguments, the left and right hand sides of a "tr"
+expression, for example
+
+     Convert::Moji->new (["tr", "A-Z", "a-z"])
+
+will convert upper to lower case
+
+A "tr" is performed, and inversely for the invert case.
+
+
+
+Conversions, via "convert", will be performed in the order of the
+arguments. Inversions will be performed in reverse order of the
+arguments, skipping uninvertibles.
+
+
+
+If your conversion doesn't actually go backwards, you can tell the
+module when you create the object using a keyword "oneway":
+
+    my $uninvertible = Convert::Moji->new (["oneway", "table", $mytable]);
+
+Then $uninvertible->invert doesn't do anything. You can also
+selectively choose which operations of a list are invertible and which
+aren't, so that only the invertible ones do something.
+
+
+
+Load a character conversion table from a file using
+
+Convert::Moji->new (["file", $filename]);
+
+In this case, the file needs to contain a space-separated list to be
+converted one into the other.
+
+
+
+This doesn't handle comments or blank lines in the file.
+
+
+
+The convert method takes one argument, which is a scalar string to be
+converted into the other list by the stuff we fed in at "new".
+
+
+
+
+
+
+
+Just ignores (passes through) characters which it can't convert. It
+should have a "strict" option to also validate the input.
+
+
+
+
+
+Inverts the input.
+
+Takes two arguments, the first is the string to be inverted back
+through the conversion process, and the second is the type of conversion to
+perform if the inversion is ambiguous. This can take one of the following
+values
+
+
+
+
+
+If the inversion is ambiguous, it picks the first one it finds.
+
+
+
+If the inversion is ambiguous, it picks one at random.
+
+
+
+In this case you get an array reference back containing either strings
+where the inversion was unambiguous, or array references to arrays
+containing all possible strings. So it's a horrible mess.
+
+
+
+Like "all" but you get a scalar with all the options in square
+brackets instead of lots of array references.
+
+
+
+
+
+
+
+
+
+The second argument part is only implemented for hash table based
+conversions, and is very likely to be buggy even then.
+
+-----------------------------------------------------------------------------
+
+2. DOCUMENTATION
+
+You can read the documentation for the module online at the following websites:
+
+    * http://search.cpan.org/perldoc?Convert::Moji
+    * http://metacpan.org/release/Convert-Moji
+
+(These links go to the latest version of the module.)
+
+After installing the module, you can read the documentation on your computer
+using
+
+    perldoc Convert::Moji
+
+-----------------------------------------------------------------------------
+
+3. INSTALLATION
+
+To install the module from CPAN, use
+
+    cpan Convert::Moji
+
+If you have the App::cpanminus installer, you may prefer
+
+    cpanm Convert::Moji
+
+To install the module from the source file, Convert-Moji-0.06.tar.gz, follow
+this sequence of commands:
+
+    tar xfz Convert-Moji-0.06.tar.gz
+    cd Convert-Moji-0.06
+    perl Makefile.PL
+    make
+    make install
+
+If you want to test the module before installing it, use "make test" after
+"make" and before "make install".
+
+-----------------------------------------------------------------------------
+
+4. HELP
+
+To get help with the module, you can email the author, Ben Bullock, at
+<bkb@cpan.org>. If you think there is a problem in the module, you can report a
+bug at 
+
+<https://github.com/benkasminbullock/Convert-Moji/issues>,
+
+or if you want to alter the source code of Convert::Moji, try the public
+repository on github at 
+
+<https://github.com/benkasminbullock/Convert-Moji>. 
+
+-----------------------------------------------------------------------------
+
+This README was written on Wed Nov 27 20:30:24 2013.
+
+-----------------------------------------------------------------------------
