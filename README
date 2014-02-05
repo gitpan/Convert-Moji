@@ -6,7 +6,7 @@
                                                         |__/   
 
 
-This is the README for Convert::Moji version 0.06.
+This is the README for Convert::Moji version 0.07.
 
 Convert::Moji is a "module" for the Perl computer programming language, a
 library of computer code to install on a computer.  This document contains four
@@ -27,152 +27,11 @@ sections:
 Convert::Moji - objects to convert alphabets
 
 Convert::Moji creates objects which can be used to convert between
-different alphabets. It was originally designed to do the work for
-"Lingua::JA::Moji", to convert between different forms of Japanese
-writing. It was split out of that module as a general-purpose
-converter for any alphabets.
-
-
-
-Create the object. Arguments are a list of array references. The array
-references should have either the "noninvertible" flag "oneway" or one
-of the following as its first argument.
-
-You can also chain the converters
-together, with
-
-    my $does_something = Convert::Moji->new (["table", $mytable],
-					     ["tr", $left, $right]);
-
-
-
-
-
-After this comes one more argument, a reference to the hash containing
-the table. For example
-
-     my $conv = Convert::Moji->new (["table", \%crazyhash]);
-
-The hash keys and values can be any length, so you can convert single
-characters into words, as in 
-
-     my %crazyhash = {"a" => "apple", "b" => "banana"}
-
-and vice-versa if you wish. The conversion will be performed correctly
-regardless of the weirdness of your table.
-
-
-
-After this comes one more argument, the name of a file containing some
-information to convert into a hash table. The file format is
-space-separated pairs, no comments or blank lines allowed. If the file
-does not exist or cannot be opened, the module prints an error
-message, and returns the undefined value.
-
-
-
-After this comes one or two references to subroutines. The first
-subroutine is the conversion and the second one is the inversion
-routine. If you omit the second routine, it is equivalent to
-specifying "oneway".
-
-
-
-After this come two arguments, the left and right hand sides of a "tr"
-expression, for example
-
-     Convert::Moji->new (["tr", "A-Z", "a-z"])
-
-will convert upper to lower case
-
-A "tr" is performed, and inversely for the invert case.
-
-
-
-Conversions, via "convert", will be performed in the order of the
-arguments. Inversions will be performed in reverse order of the
-arguments, skipping uninvertibles.
-
-
-
-If your conversion doesn't actually go backwards, you can tell the
-module when you create the object using a keyword "oneway":
-
-    my $uninvertible = Convert::Moji->new (["oneway", "table", $mytable]);
-
-Then $uninvertible->invert doesn't do anything. You can also
-selectively choose which operations of a list are invertible and which
-aren't, so that only the invertible ones do something.
-
-
-
-Load a character conversion table from a file using
-
-Convert::Moji->new (["file", $filename]);
-
-In this case, the file needs to contain a space-separated list to be
-converted one into the other.
-
-
-
-This doesn't handle comments or blank lines in the file.
-
-
-
-The convert method takes one argument, which is a scalar string to be
-converted into the other list by the stuff we fed in at "new".
-
-
-
-
-
-
-
-Just ignores (passes through) characters which it can't convert. It
-should have a "strict" option to also validate the input.
-
-
-
-
-
-Inverts the input.
-
-Takes two arguments, the first is the string to be inverted back
-through the conversion process, and the second is the type of conversion to
-perform if the inversion is ambiguous. This can take one of the following
-values
-
-
-
-
-
-If the inversion is ambiguous, it picks the first one it finds.
-
-
-
-If the inversion is ambiguous, it picks one at random.
-
-
-
-In this case you get an array reference back containing either strings
-where the inversion was unambiguous, or array references to arrays
-containing all possible strings. So it's a horrible mess.
-
-
-
-Like "all" but you get a scalar with all the options in square
-brackets instead of lots of array references.
-
-
-
-
-
-
-
-
-
-The second argument part is only implemented for hash table based
-conversions, and is very likely to be buggy even then.
+different alphabets. 
+
+This is basically a helper module for "Lingua::JA::Moji". It was
+split out of that module as a general-purpose converter for any
+alphabets.
 
 -----------------------------------------------------------------------------
 
@@ -194,6 +53,8 @@ using
 
 3. INSTALLATION
 
+This module requires Perl version 5.8.1 or later.
+
 To install the module from CPAN, use
 
     cpan Convert::Moji
@@ -202,11 +63,11 @@ If you have the App::cpanminus installer, you may prefer
 
     cpanm Convert::Moji
 
-To install the module from the source file, Convert-Moji-0.06.tar.gz, follow
+To install the module from the source file, Convert-Moji-0.07.tar.gz, follow
 this sequence of commands:
 
-    tar xfz Convert-Moji-0.06.tar.gz
-    cd Convert-Moji-0.06
+    tar xfz Convert-Moji-0.07.tar.gz
+    cd Convert-Moji-0.07
     perl Makefile.PL
     make
     make install
@@ -231,6 +92,6 @@ repository on github at
 
 -----------------------------------------------------------------------------
 
-This README was written on Wed Nov 27 20:30:24 2013.
+This README was written on Wed Feb  5 22:44:40 2014.
 
 -----------------------------------------------------------------------------
